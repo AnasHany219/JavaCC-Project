@@ -1,0 +1,200 @@
+options {
+    STATIC = false;
+}
+
+PARSER_BEGIN(JavaAnalyzer)
+import java.io.FileReader;
+import java.io.IOException;
+
+public class JavaAnalyzer {
+    private static boolean tableHeaderPrinted = false;
+
+    public static void main(String[] args) throws IOException {
+        if (args.length != 1) {
+            System.err.println("Usage: java JavaAnalyzer <input_file>");
+            System.exit(1);
+        }
+
+        // Read input from the file specified as a command-line argument
+        FileReader inputFile = new FileReader(args[0]);
+        JavaAnalyzer analyzer = new JavaAnalyzer(inputFile);
+        try {
+            analyzer.Start(); // Start parsing
+            System.out.println("-------------------------------------------");
+            System.out.println("*******************************************");
+            System.out.println("*      Syntax validation successful.      *");
+            System.out.println("*******************************************");
+        } catch (ParseException e) {
+            System.out.println("-------------------------------------------");
+            System.out.println("*******************************************");
+            System.err.println("Syntax error: " + e.getMessage());
+            System.out.println("*******************************************");
+        }
+    }
+
+    // Helper method to print tokens
+    public static void printToken(String tokenType, Token token) {
+        if (!tableHeaderPrinted) {
+            System.out.println("-------------------------------------------");
+            System.out.printf("|  %-20s | %-15s\n", "Token Type", "Token Image");
+            System.out.println("-------------------------------------------");
+            tableHeaderPrinted = true;
+        }
+        System.out.printf("|  %-20s | %-15s |\n", tokenType, token.image);
+    }
+}
+PARSER_END(JavaAnalyzer)
+
+// Token definitions
+TOKEN : {
+    < CLASS: "class" >
+|   < IF: "if" >
+|   < ELSE: "else" >
+|   < WHILE: "while" >
+|   < INT: "int" >
+|   < BOOLEAN: "boolean" >
+|   < TRUE: "true" >
+|   < FALSE: "false" >
+|   < RETURN: "return" >
+|   < VOID: "void" >
+|   < PUBLIC: "public" >
+|   < PRIVATE: "private" >
+|   < STATIC: "static" >
+|   < IDENTIFIER: (["a"-"z", "A"-"Z"]) (["a"-"z", "A"-"Z", "0"-"9", "_"])* >
+|   < INTEGER_LITERAL: (["0"-"9"])+ >
+|   < STRING_LITERAL: "\"" (~["\""])* "\"" >
+|   < PLUS: "+" >
+|   < MINUS: "-" >
+|   < TIMES: "*" >
+|   < DIVIDE: "/" >
+|   < ASSIGN: "=" >
+|   < EQ: "==" >
+|   < LT: "<" >
+|   < GT: ">" >
+|   < LPAREN: "(" >
+|   < RPAREN: ")" >
+|   < LBRACE: "{" >
+|   < RBRACE: "}" >
+|   < SEMICOLON: ";" >
+|   < COMMA: "," >
+}
+
+// Skip whitespace and comments
+SKIP :
+{
+  " " | "\t" | "\n" | "\r"
+| < "//" (~[ "\n", "\r" ])*
+    (
+      "\n"
+    | "\r"
+    | "\r\n"
+    ) >
+| < "/*" (~[ "*" ])* "*"
+    (
+      ~[ "/" ] (~[ "*" ])* "*"
+    )*
+    "/" >
+}
+
+// Parser rules
+void Start() : {}
+{
+    ( ClassDeclaration() )* <EOF>
+}
+
+void ClassDeclaration() : {}
+{
+    <CLASS> { JavaAnalyzer.printToken("CLASS", token); }
+    <IDENTIFIER> { JavaAnalyzer.printToken("IDENTIFIER", token); }
+    <LBRACE> { JavaAnalyzer.printToken("LBRACE", token); }
+    ( Statement() )* 
+    <RBRACE> { JavaAnalyzer.printToken("RBRACE", token); }
+}
+
+void Statement() : {}
+{
+    VariableDeclaration() |
+    IfStatement() |
+    WhileStatement() |
+    ExpressionStatement()
+}
+
+void VariableDeclaration() : {}
+{
+    <INT> { JavaAnalyzer.printToken("INT", token); }
+    <IDENTIFIER> { JavaAnalyzer.printToken("IDENTIFIER", token); }
+    <ASSIGN> { JavaAnalyzer.printToken("ASSIGN", token); }
+    Expression() 
+    <SEMICOLON> { JavaAnalyzer.printToken("SEMICOLON", token); }
+}
+
+void IfStatement() : {}
+{
+    <IF> { JavaAnalyzer.printToken("IF", token); }
+    <LPAREN> { JavaAnalyzer.printToken("LPAREN", token); }
+    Expression() 
+    <RPAREN> { JavaAnalyzer.printToken("RPAREN", token); }
+    <LBRACE> { JavaAnalyzer.printToken("LBRACE", token); }
+    ( Statement() )* 
+    <RBRACE> { JavaAnalyzer.printToken("RBRACE", token); }
+    [ <ELSE> { JavaAnalyzer.printToken("ELSE", token); }
+      <LBRACE> { JavaAnalyzer.printToken("LBRACE", token); }
+      ( Statement() )* 
+      <RBRACE> { JavaAnalyzer.printToken("RBRACE", token); } ]
+}
+
+void WhileStatement() : {}
+{
+    <WHILE> { JavaAnalyzer.printToken("WHILE", token); }
+    <LPAREN> { JavaAnalyzer.printToken("LPAREN", token); }
+    Expression() 
+    <RPAREN> { JavaAnalyzer.printToken("RPAREN", token); }
+    <LBRACE> { JavaAnalyzer.printToken("LBRACE", token); }
+    ( Statement() )* 
+    <RBRACE> { JavaAnalyzer.printToken("RBRACE", token); }
+}
+
+void ExpressionStatement() : {}
+{
+    Expression() 
+    <SEMICOLON> { JavaAnalyzer.printToken("SEMICOLON", token); }
+}
+
+void Expression() : {}
+{
+    LogicalOrExpression()
+}
+
+void LogicalOrExpression() : {}
+{
+    LogicalAndExpression() ( LOOKAHEAD(2) <EQ> LogicalAndExpression() )*
+}
+
+void LogicalAndExpression() : {}
+{
+    EqualityExpression() ( <LT> EqualityExpression() | <GT> EqualityExpression() )*
+}
+
+void EqualityExpression() : {}
+{
+    AdditiveExpression() ( <EQ> AdditiveExpression() )*
+}
+
+void AdditiveExpression() : {}
+{
+    MultiplicativeExpression() ( <PLUS> MultiplicativeExpression() | <MINUS> MultiplicativeExpression() )*
+}
+
+void MultiplicativeExpression() : {}
+{
+    Factor() ( <TIMES> Factor() | <DIVIDE> Factor() )*
+}
+
+void Factor() : {}
+{
+    <IDENTIFIER> { JavaAnalyzer.printToken("IDENTIFIER", token); }
+|   <INTEGER_LITERAL> { JavaAnalyzer.printToken("INTEGER_LITERAL", token); }
+|   <LPAREN> { JavaAnalyzer.printToken("LPAREN", token); }
+    Expression() 
+    <RPAREN> { JavaAnalyzer.printToken("RPAREN", token); }
+}
